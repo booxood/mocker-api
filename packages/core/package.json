@@ -1,5 +1,5 @@
 {
-  "name": "mocker-api",
+  "name": "@booxood/mocker-api",
   "version": "2.9.0",
   "description": "This is dev support mock RESTful API.",
   "bin": {
@@ -9,7 +9,7 @@
   "typings": "lib/index.d.ts",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jaywcjlove/mocker-api.git"
+    "url": "git+https://github.com/booxood/mocker-api.git"
   },
   "jest": {},
   "license": "MIT",

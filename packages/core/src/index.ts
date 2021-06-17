@@ -186,6 +186,7 @@ export interface MockerOption {
 
 const pathToRegexp = toRegexp.pathToRegexp;
 let mocker: MockerProxyRoute = {};
+const watchedFilePaths: string[] = []
 
 export default function (app: Application, watchFile: string | string[] | MockerProxyRoute, conf: MockerOption = {}) {
   const watchFiles = (Array.isArray(watchFile) ? watchFile : typeof watchFile === 'string' ? [watchFile] : []).map(str => PATH.resolve(str));
@@ -241,14 +242,17 @@ export default function (app: Application, watchFile: string | string[] | Mocker
   if (isWatchFilePath) {
     // 监听配置入口文件所在的目录，一般为认为在配置文件/mock 目录下的所有文件
     // 加上require.resolve，保证 `./mock/`能够找到`./mock/index.js`，要不然就要监控到上一级目录了
-    const watcher = chokidar.watch(watchFiles.map(watchFile => PATH.dirname(require.resolve(watchFile))), options.watchOptions);
+    // const watcher = chokidar.watch(watchFiles.map(watchFile => PATH.dirname(require.resolve(watchFile))), options.watchOptions);
+    const watcher = chokidar.watch(watchFiles, options.watchOptions);
   
     watcher.on('all', (event, path) => {
       if (event === 'change' || event === 'add') {
+        if (watchedFilePaths.indexOf(path) < 0) watchedFilePaths.push(path)
+
         try {
           // 当监听的可能是多个配置文件时，需要清理掉更新文件以及入口文件的缓存，重新获取
           cleanCache(path);
-          watchFiles.forEach(file => cleanCache(file));
+          // watchFiles.forEach(file => cleanCache(file));
           mocker = getConfig();
           if (mocker._proxy) {
             options = { ...options, ...mocker._proxy };
@@ -256,6 +260,18 @@ export default function (app: Application, watchFile: string | string[] | Mocker
           console.log(`${color.green_b.black(' Done: ')} Hot Mocker ${color.green(path.replace(process.cwd(), ''))} file replacement success!`);
         } catch (ex) {
           console.error(`${color.red_b.black(' Failed: ')} Hot Mocker ${color.red(path.replace(process.cwd(), ''))} file replacement failed!!`);
+        }
+      } else if (event === 'unlink') {
+        if (watchedFilePaths.indexOf(path) >= 0) watchedFilePaths.splice(watchedFilePaths.indexOf(path))
+
+        try {
+          mocker = getConfig();
+          if (mocker._proxy) {
+            options = { ...options, ...mocker._proxy };
+          }
+          console.log(`${color.green_b.black(' Done: ')} Hot Mocker ${color.green(path.replace(process.cwd(), ''))} file remove success!`);
+        } catch (ex) {
+          console.error(`${color.red_b.black(' Failed: ')} Hot Mocker ${color.red(path.replace(process.cwd(), ''))} file remove failed!!`);
         }
       }
     })
@@ -346,7 +362,7 @@ export default function (app: Application, watchFile: string | string[] | Mocker
    * Merge multiple Mockers
    */
   function getConfig() {
-    return watchFiles.reduce((mocker, file) => {
+    return watchedFilePaths.reduce((mocker, file) => {
       const mockerItem = require(file);
       return Object.assign(mocker, mockerItem.default ? mockerItem.default : mockerItem);
     }, {})
